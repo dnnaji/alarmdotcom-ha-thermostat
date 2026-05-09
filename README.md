@@ -112,6 +112,12 @@ These devices are known but blocked from appearing in Home Assistant. If you dis
 
 ## Using the Integration
 
+### Thermostat-Only Fork Note
+
+This fork intentionally forwards only the Home Assistant climate platform. Fresh installs should only create thermostat entities.
+
+If you are switching from the full Alarm.com integration, remove the existing Alarm.com integration from Home Assistant and add this fork as a fresh integration. Otherwise, Home Assistant may keep stale alarm, lock, cover, light, valve, button, or sensor registry entries from the previous install as unavailable entities.
+
 ### Installation
 
 1. Use [HACS](https://hacs.xyz/) to download this integration.

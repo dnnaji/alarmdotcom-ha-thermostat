@@ -18,8 +18,6 @@ If you have any issues with this you need to open an issue here:
 
 STATE_MALFUNCTION = "Malfunction"
 
-DEBUG_REQ_EVENT = "alarmdotcom_debug_request"
-
 MIGRATE_MSG_ALERT = (
     "The Alarm.com integration is now configured exclusively via Home Assistant's"
     " integrations page. Please delete the Alarm.com entry from configuration.yaml."
@@ -70,15 +68,5 @@ ATTRIB_BATTERY_CRITICAL = "Critical"
 ATTRIB_MANUFACTURER = "Alarm.com"
 
 PLATFORMS = [
-    Platform.ALARM_CONTROL_PANEL,
-    Platform.BINARY_SENSOR,
-    Platform.LOCK,
-    Platform.COVER,
-    Platform.LIGHT,
-    Platform.BUTTON,
     Platform.CLIMATE,
-    Platform.VALVE,
-    # Platform.NUMBER,
-    # Platform.SWITCH,
-    # Platform.SELECT,
 ]

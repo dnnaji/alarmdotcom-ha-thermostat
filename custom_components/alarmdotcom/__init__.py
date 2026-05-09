@@ -5,7 +5,7 @@ import logging
 import aiohttp
 import pyalarmdotcomajax as pyadc
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import Event, HomeAssistant
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 
 from .const import (
@@ -16,7 +16,6 @@ from .const import (
     CONF_NO_ENTRY_DELAY,
     CONF_SILENT_ARM,
     DATA_HUB,
-    DEBUG_REQ_EVENT,
     DOMAIN,
     PLATFORMS,
     STARTUP_MESSAGE,
@@ -47,27 +46,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         raise ConfigEntryNotReady from ex
 
     await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
-
-    async def handle_alarmdotcom_debug_request_event(event: Event) -> None:
-        """Dump debug data when requested via Home Assistant event."""
-
-        event_resource = hub.api.resources.get(str(event.data.get("resource_id")))
-
-        if event_resource is None:
-            LOGGER.warning(
-                "ALARM.COM DEBUG DATA FOR %s: No such device.",
-                str(event.data.get("resource_id")).upper(),
-            )
-            return
-
-        LOGGER.warning(
-            "ALARM.COM DEBUG DATA FOR %s: %s",
-            str(event_resource.attributes.description).upper(),
-            event_resource.api_resource.to_json(),
-        )
-
-    # Listen for debug entity requests
-    hass.bus.async_listen(DEBUG_REQ_EVENT, handle_alarmdotcom_debug_request_event)
 
     LOGGER.info("%s: Finished initializing Alarmdotcom from config entry.", __name__)
 
