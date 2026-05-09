@@ -10,13 +10,11 @@ from typing import TYPE_CHECKING, Any, Generic
 import pyalarmdotcomajax as pyadc
 from homeassistant.components.button import ButtonEntity, ButtonEntityDescription
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import DiscoveryInfoType
 
-from .const import DATA_HUB, DEBUG_REQ_EVENT, DOMAIN
+from .const import DATA_HUB, DOMAIN
 from .entity import (
     AdcControllerT,
     AdcEntity,
@@ -73,30 +71,7 @@ class AdcButtonDescription(
     press_fn: Callable[[HomeAssistant, AdcManagedDeviceT], Any]
 
 
-def _device_exists_in_registry(hub: AlarmHub, resource_id: str) -> bool:
-    """Check if a device with the given ID exists in the device registry."""
-    device_registry = dr.async_get(hub.hass)
-    return any(
-        (DOMAIN, resource_id) in device.identifiers
-        for device in device_registry.devices.values()
-    )
-
-
-ENTITY_DESCRIPTIONS: list[AdcEntityDescription] = [
-    AdcButtonDescription(
-        key="debug",
-        name="Debug",
-        has_entity_name=False,
-        controller_fn=lambda hub, resource_id: hub.api.get_controller(resource_id),
-        available_fn=lambda hub, resource_id: True,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        press_fn=lambda hass, resource_id: hass.bus.async_fire(
-            DEBUG_REQ_EVENT, {"resource_id": resource_id}
-        ),
-        supported_fn=_device_exists_in_registry,
-        icon="mdi:bug",
-    ),
-]
+ENTITY_DESCRIPTIONS: list[AdcEntityDescription] = []
 
 
 class AdcButtonEntity(AdcEntity[AdcManagedDeviceT, AdcControllerT], ButtonEntity):
