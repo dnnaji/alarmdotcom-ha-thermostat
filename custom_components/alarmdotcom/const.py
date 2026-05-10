@@ -35,6 +35,11 @@ CONF_MFA_TOKEN = "2fa_cookie"  # noqa: S105
 CONF_OTP = "otp"
 CONF_OTP_METHOD = "otp_method"
 CONF_OTP_METHODS_LIST = "otp_methods_list"
+CONF_SECRET_PROFILE = "secret_profile"  # noqa: S105
+
+DEFAULT_SECRET_PROFILE = "primary"  # noqa: S105
+DEFAULT_CREDENTIAL_HELPER_SOCKET = "/run/adc-secret-proxy/proxy.sock"
+DEFAULT_CREDENTIAL_HELPER_TOKEN_FILE = "/run/adc-secret-proxy/token"  # noqa: S105
 
 CONF_ARM_CODE = "arm_code"
 CONF_REMOVE_ARM_CODE = "remove_arm_code"
@@ -52,12 +57,7 @@ CONF_ARM_MODE_OPTIONS = {
     CONF_NO_ENTRY_DELAY: "No Entry Delay",
 }
 
-CONF_OPTIONS_DEFAULT = {
-    CONF_ARM_CODE: "",
-    CONF_ARM_HOME: [],
-    CONF_ARM_AWAY: [],
-    CONF_ARM_NIGHT: [],
-}
+CONF_OPTIONS_DEFAULT = {}
 
 DATA_HUB = "connection"
 

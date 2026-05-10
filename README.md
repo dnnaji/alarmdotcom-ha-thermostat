@@ -122,29 +122,20 @@ If you are switching from the full Alarm.com integration, remove the existing Al
 
 1. Use [HACS](https://hacs.xyz/) to download this integration.
 2. Configure the integration via Home Assistant's Integrations page. (Configuration -> Add Integration -> Alarm.com)
-3. When prompted, enter your Alarm.com username, password, and two-factor authentication one-time password.
+3. When prompted, enter the credential profile name exposed by the host-side credential helper.
 
 ### Configuration
 
 You'll be prompted to enter these parameters when configuring the integration.
 
-| Parameter         | Required | Description                                                   |
-| ----------------- | -------- | ------------------------------------------------------------- |
-| Username          | Yes      | Username for your Alarm.com account.                          |
-| Password          | Yes      | Password for your Alarm.com account.                          |
-| One-Time Password | Maybe    | Required for accounts with two-factor authentication enabled. |
+| Parameter          | Required | Description                                                              |
+| ------------------ | -------- | ------------------------------------------------------------------------ |
+| Credential Profile | Yes      | Profile name resolved by the host-side credential helper. Default: `primary`. |
 
-#### Additional Options
+This fork does not store your Alarm.com username, password, MFA cookie, arming code, or lock/alarm options in Home Assistant config entries.
 
-These options can be set using the "Configure" button on the Alarm.com card on Home Assistant's Integrations page:
+The host-side credential helper must provide:
 
-![image](https://user-images.githubusercontent.com/466460/150607393-e057d445-a882-4fbd-a455-acf155083327.png)
-
-| Parameter      | Description                                                                                                                                                                                                                                                                                      |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Code           | Specifies a code to arm/disarm your alarm or lock/unlock your locks in the Home Assistant frontend. This is not necessarily the code you use to arm/disarm your panel. This is a separate code that Home Assistant in [alarm panel card](https://www.home-assistant.io/dashboards/alarm-panel/). |
-| Force Bypass   | Bypass open zones (windows, doors, etc.) when arming.                                                                                                                                                                                                                                            |
-| No Entry Delay | Bypass the entry delay normally applied to entrance sensors.                                                                                                                                                                                                                                     |
-| Silent Arming  | Suppress beeps when arming and double arming delay length.                                                                                                                                                                                                                                       |
-
-_The three arming options are not available on all systems/providers. Also, some combinations of these options are incompatible. If arming does not work with a combination of options, please check that you are able to arm via the web portal using those same options._
+- a Unix socket mounted in Home Assistant at `/run/adc-secret-proxy/proxy.sock`
+- a read-only bearer token file mounted at `/run/adc-secret-proxy/token`
+- a credential profile matching the profile entered in the integration flow

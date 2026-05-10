@@ -5,22 +5,28 @@ import logging
 import aiohttp
 import pyalarmdotcomajax as pyadc
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 
 from .const import (
     CONF_ARM_AWAY,
+    CONF_ARM_CODE,
     CONF_ARM_HOME,
     CONF_ARM_NIGHT,
     CONF_FORCE_BYPASS,
+    CONF_MFA_TOKEN,
     CONF_NO_ENTRY_DELAY,
+    CONF_SECRET_PROFILE,
     CONF_SILENT_ARM,
     DATA_HUB,
+    DEFAULT_SECRET_PROFILE,
     DOMAIN,
     PLATFORMS,
     STARTUP_MESSAGE,
 )
 from .hub import AlarmHub
+from .secret_proxy import SecretProxyError, async_resolve_credentials
 
 LOGGER = logging.getLogger(__name__)
 
@@ -39,7 +45,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     hub = AlarmHub(hass, config_entry)
 
     try:
-        await hub.initialize()
+        if not await hub.initialize():
+            raise ConfigEntryNotReady("Alarm.com integration did not initialize.")
     except pyadc.AuthenticationException as ex:
         raise ConfigEntryAuthFailed from ex
     except (TimeoutError, pyadc.AlarmdotcomException, aiohttp.ClientError) as ex:
@@ -52,7 +59,9 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     return True
 
 
-async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
+async def async_migrate_entry(  # noqa: C901
+    hass: HomeAssistant, config_entry: ConfigEntry
+) -> bool:
     """Migrate old entry."""
 
     #
@@ -193,6 +202,48 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
         )
 
         LOGGER.info("Migration to version %s successful", 5)
+
+    #
+    # To v6
+    #
+
+    if config_entry.version == 5:
+        LOGGER.debug("Migrating from version %s", config_entry.version)
+
+        try:
+            await async_resolve_credentials(hass, config_entry)
+        except SecretProxyError:
+            LOGGER.warning(
+                "Delaying Alarm.com v6 migration until the host credential helper can resolve credentials."
+            )
+            return False
+
+        v6_data = {**config_entry.data}
+        v6_data.pop(CONF_USERNAME, None)
+        v6_data.pop(CONF_PASSWORD, None)
+        v6_data.pop(CONF_MFA_TOKEN, None)
+        v6_data.pop("secret_proxy_socket", None)
+        v6_data.pop("secret_proxy_token_file", None)
+        v6_data.setdefault(CONF_SECRET_PROFILE, DEFAULT_SECRET_PROFILE)
+
+        v6_options = {**config_entry.options}
+        for key in (
+            CONF_ARM_AWAY,
+            CONF_ARM_CODE,
+            CONF_ARM_HOME,
+            CONF_ARM_NIGHT,
+            "use_arm_code",
+            "force_bypass",
+            "silent_arming",
+            "no_entry_delay",
+        ):
+            v6_options.pop(key, None)
+
+        hass.config_entries.async_update_entry(
+            config_entry, data=v6_data, options=v6_options, version=6
+        )
+
+        LOGGER.info("Migration to version %s successful", 6)
 
     return True
 

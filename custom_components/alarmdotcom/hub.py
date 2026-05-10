@@ -5,17 +5,21 @@ import logging
 
 import pyalarmdotcomajax as pyadc
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from pyalarmdotcomajax import AlarmBridge
 
 from .const import (
-    CONF_MFA_TOKEN,
     DATA_HUB,
     DOMAIN,
     PLATFORMS,
+)
+from .secret_proxy import (
+    SecretProxyAuthFailed,
+    SecretProxyError,
+    SecretProxyUnavailable,
+    async_resolve_credentials,
 )
 
 log = logging.getLogger(__name__)
@@ -30,11 +34,7 @@ class AlarmHub:
         self.hass: HomeAssistant = hass
         self.config_entry: ConfigEntry = config_entry
 
-        self.api = AlarmBridge(
-            username=config_entry.data[CONF_USERNAME],
-            password=config_entry.data[CONF_PASSWORD],
-            mfa_token=config_entry.data.get(CONF_MFA_TOKEN),
-        )
+        self.api: AlarmBridge | None = None
 
         self.close_jobs: list[CALLBACK_TYPE] = []
 
@@ -70,7 +70,19 @@ class AlarmHub:
         """Log in to alarm.com."""
 
         try:
+            credentials = await async_resolve_credentials(self.hass, self.config_entry)
+            self.api = AlarmBridge(
+                username=credentials.username,
+                password=credentials.password,
+                mfa_token=credentials.mfa_token,
+            )
             await self.api.login()
+        except SecretProxyAuthFailed as err:
+            raise ConfigEntryAuthFailed from err
+        except SecretProxyUnavailable as err:
+            raise ConfigEntryNotReady("Alarm.com credential helper is unavailable.") from err
+        except SecretProxyError as err:
+            raise ConfigEntryNotReady("Alarm.com credential helper returned invalid data.") from err
         except pyadc.AuthenticationFailed as err:
             raise ConfigEntryAuthFailed from err
         except pyadc.MustConfigureMfa:
@@ -89,6 +101,11 @@ class AlarmHub:
         """Initialize connection to Alarm.com after user-driven authentication has already taken place."""
 
         setup_ok = False
+        if not await self.login():
+            return False
+
+        if self.api is None:
+            return False
 
         try:
             async with asyncio.timeout(10):
@@ -138,7 +155,8 @@ class AlarmHub:
         while self.close_jobs:
             self.close_jobs.pop()()
 
-        await self.api.close()
+        if self.api is not None:
+            await self.api.close()
 
         unload_success: bool = await self.hass.config_entries.async_unload_platforms(
             self.config_entry, PLATFORMS
