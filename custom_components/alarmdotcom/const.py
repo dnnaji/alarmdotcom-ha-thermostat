@@ -1,6 +1,7 @@
 """Const for the Alarmdotcom integration."""
 
 import logging
+from typing import Any
 
 from homeassistant.const import Platform
 
@@ -57,7 +58,7 @@ CONF_ARM_MODE_OPTIONS = {
     CONF_NO_ENTRY_DELAY: "No Entry Delay",
 }
 
-CONF_OPTIONS_DEFAULT = {}
+CONF_OPTIONS_DEFAULT: dict[str, Any] = {}
 
 DATA_HUB = "connection"
 

@@ -34,7 +34,8 @@ class AlarmHub:
         self.hass: HomeAssistant = hass
         self.config_entry: ConfigEntry = config_entry
 
-        self.api: AlarmBridge | None = None
+        self.api: AlarmBridge
+        self._api_initialized = False
 
         self.close_jobs: list[CALLBACK_TYPE] = []
 
@@ -71,12 +72,14 @@ class AlarmHub:
 
         try:
             credentials = await async_resolve_credentials(self.hass, self.config_entry)
-            self.api = AlarmBridge(
+            api = AlarmBridge(
                 username=credentials.username,
                 password=credentials.password,
                 mfa_token=credentials.mfa_token,
             )
-            await self.api.login()
+            await api.login()
+            self.api = api
+            self._api_initialized = True
         except SecretProxyAuthFailed as err:
             raise ConfigEntryAuthFailed from err
         except SecretProxyUnavailable as err:
@@ -104,9 +107,6 @@ class AlarmHub:
         if not await self.login():
             return False
 
-        if self.api is None:
-            return False
-
         try:
             async with asyncio.timeout(10):
                 await self.api.initialize()
@@ -123,7 +123,7 @@ class AlarmHub:
             log.exception("Unexpected error during Alarm.com initialization.")
             return False
         finally:
-            if not setup_ok:
+            if not setup_ok and self._api_initialized:
                 await self.api.close()
 
         # Initialize WebSocket connection.
@@ -155,7 +155,7 @@ class AlarmHub:
         while self.close_jobs:
             self.close_jobs.pop()()
 
-        if self.api is not None:
+        if self._api_initialized:
             await self.api.close()
 
         unload_success: bool = await self.hass.config_entries.async_unload_platforms(

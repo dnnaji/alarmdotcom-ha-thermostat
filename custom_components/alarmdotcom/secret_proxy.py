@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import stat
-from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -42,7 +41,7 @@ class SecretProxySecurityError(SecretProxyError):
 class ConfigDataEntry(Protocol):
     """Minimal config-entry surface needed by credential resolution."""
 
-    data: Mapping[str, Any]
+    data: Any
 
 
 @dataclass(frozen=True)
