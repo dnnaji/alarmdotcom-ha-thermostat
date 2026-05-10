@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Generic
+from typing import TYPE_CHECKING, Any, Generic, cast
 
 import pyalarmdotcomajax as pyadc
 from homeassistant.components.cover import (
@@ -38,22 +38,25 @@ async def async_setup_entry(
     """Set up the cover platform."""
 
     hub: AlarmHub = hass.data[DOMAIN][config_entry.entry_id][DATA_HUB]
+    garage_doors = cast("list[pyadc.garage_door.GarageDoor]", list(hub.api.garage_doors))
+    gates = cast("list[pyadc.gate.Gate]", list(hub.api.gates))
+    resources: list[Any] = [*garage_doors, *gates]
 
     # Log discovered devices for debugging
     log.debug(
         "Setting up cover platform. Found %d garage doors and %d gates.",
-        len(hub.api.garage_doors),
-        len(hub.api.gates),
+        len(garage_doors),
+        len(gates),
     )
-    for device in hub.api.garage_doors:
-        log.debug("  - Garage door: %s (ID: %s)", device.name, device.id)
-    for device in hub.api.gates:
-        log.debug("  - Gate: %s (ID: %s)", device.name, device.id)
+    for garage_door in garage_doors:
+        log.debug("  - Garage door: %s (ID: %s)", garage_door.name, garage_door.id)
+    for gate in gates:
+        log.debug("  - Gate: %s (ID: %s)", gate.name, gate.id)
 
     entities = [
         AdcCoverEntity(hub=hub, resource_id=resource.id, description=entity_description)
         for entity_description in ENTITY_DESCRIPTIONS
-        for resource in hub.api.garage_doors + hub.api.gates
+        for resource in resources
         if entity_description.supported_fn(hub, resource.id)
     ]
 
