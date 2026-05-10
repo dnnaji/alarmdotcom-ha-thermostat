@@ -12,10 +12,7 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar
 import pyalarmdotcomajax as pyadc
 from homeassistant.core import callback
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.device_registry import (
-    CONNECTION_NETWORK_MAC,
-    DeviceInfo,
-)
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity, EntityDescription
 
 # from pyalarmdotcomajax import AdcManagedDeviceT
@@ -84,11 +81,8 @@ def device_info_fn(hub: AlarmHub, resource_id: str, entity_name: str | None) -> 
         via_device_id = getattr(resource, "system_id", None)
 
     device_info = DeviceInfo(identifiers={(DOMAIN, resource_id)}, name=resource.name)
+    device_info["connections"] = set()
 
-    if resource.attributes.mac_address is not None and resource.attributes.mac_address != "":
-        device_info["connections"] = {(CONNECTION_NETWORK_MAC, resource.attributes.mac_address)}
-    else:
-        device_info["connections"] = set()
     if resource.attributes.manufacturer is not None:
         device_info["manufacturer"] = resource.attributes.manufacturer
     if resource.attributes.device_model is not None:

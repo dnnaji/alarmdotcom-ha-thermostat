@@ -24,6 +24,7 @@ from homeassistant.helpers.typing import DiscoveryInfoType
 
 from .const import DATA_HUB, DOMAIN
 from .entity import AdcControllerT, AdcEntity, AdcEntityDescription, AdcManagedDeviceT
+from .thermostat_proxy import ThermostatProxyError
 from .util import cleanup_orphaned_entities_and_devices
 
 if TYPE_CHECKING:
@@ -318,10 +319,13 @@ async def set_temperature_fn(
 ) -> None:
     """Set the target temperature."""
 
-    if target_temp_high and target_temp_low:
-        await controller.set_state(thermostat_id, heat_setpoint=target_temp_low)
-        await controller.set_state(thermostat_id, cool_setpoint=target_temp_high)
-    elif target_temp and current_hvac_mode:
+    if target_temp_high is not None and target_temp_low is not None:
+        await controller.set_state(
+            thermostat_id,
+            heat_setpoint=target_temp_low,
+            cool_setpoint=target_temp_high,
+        )
+    elif target_temp is not None and current_hvac_mode:
         if current_hvac_mode == HVACMode.HEAT:
             await controller.set_state(thermostat_id, heat_setpoint=target_temp)
         elif current_hvac_mode == HVACMode.COOL:
@@ -386,6 +390,7 @@ ENTITY_DESCRIPTIONS: list[AdcClimateEntityDescription[pyadc.thermostat.Thermosta
     AdcClimateEntityDescription(
         key="thermostats",
         controller_fn=lambda hub, _: hub.api.thermostats,
+        should_poll=True,
         hvac_mode_fn=hvac_mode_fn,
         temperature_fn=current_temperature_fn,
         target_temperature_fn=target_temperature_fn,
@@ -452,10 +457,12 @@ class AdcClimateEntity(AdcEntity[AdcManagedDeviceT, AdcControllerT], ClimateEnti
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set the HVAC mode."""
         await self.entity_description.set_hvac_mode_fn(self.controller, self.resource_id, hvac_mode)
+        await self.async_update()
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set the fan mode."""
         await self.entity_description.set_fan_mode_fn(self.controller, self.resource_id, fan_mode)
+        await self.async_update()
 
     # async def async_set_humidity(self, humidity: int) -> None:
     #     """Set the humidity."""
@@ -466,6 +473,7 @@ class AdcClimateEntity(AdcEntity[AdcManagedDeviceT, AdcControllerT], ClimateEnti
     async def async_turn_off(self) -> None:
         """Turn off the thermostat."""
         await self.entity_description.turn_off_fn(self.controller, self.resource_id)
+        await self.async_update()
 
     async def async_set_temperature(
         self,
@@ -479,4 +487,29 @@ class AdcClimateEntity(AdcEntity[AdcManagedDeviceT, AdcControllerT], ClimateEnti
             self.hvac_mode,
             kwargs.get("target_temp_high"),
             kwargs.get("target_temp_low"),
+        )
+        await self.async_update()
+
+    async def async_update(self) -> None:
+        """Poll current thermostat state through the thermostat proxy."""
+        refresh = getattr(self.controller, "refresh", None)
+        try:
+            if refresh is not None:
+                await refresh(self.resource_id)
+        except (ThermostatProxyError, TimeoutError) as err:
+            log.warning(
+                "Unable to refresh Alarm.com thermostat %s; marking entity unavailable: %s",
+                self.resource_id,
+                err,
+            )
+            self._attr_available = False
+            return
+        self._attr_available = self.entity_description.available_fn(
+            self.hub, self.resource_id
+        )
+        self.update_state(
+            pyadc.ResourceEventMessage(
+                topic=pyadc.EventBrokerTopic.RESOURCE_UPDATED,
+                id=self.resource_id,
+            )
         )
