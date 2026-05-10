@@ -1,6 +1,7 @@
 """The alarmdotcom integration."""
 
 import logging
+from types import SimpleNamespace
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
@@ -238,19 +239,16 @@ async def async_migrate_entry(  # noqa: C901
         for key in V6_LEGACY_OPTION_KEYS:
             v6_options.pop(key, None)
 
-        hass.config_entries.async_update_entry(
-            config_entry, data=v6_data, options=v6_options
-        )
-
+        bridge = ThermostatProxyBridge(hass, SimpleNamespace(data=v6_data))
         try:
-            bridge = ThermostatProxyBridge(hass, config_entry)
             await bridge.initialize()
-            await bridge.close()
         except ThermostatProxyError:
             LOGGER.warning(
                 "Delaying Alarm.com v6 migration until the host thermostat proxy is available."
             )
             return False
+        finally:
+            await bridge.close()
 
         hass.config_entries.async_update_entry(
             config_entry, data=v6_data, options=v6_options, version=6

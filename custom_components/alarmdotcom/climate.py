@@ -126,7 +126,10 @@ def supported_features_fn(controller: pyadc.ThermostatController, thermostat_id:
     if resource is None:
         return ClimateEntityFeature(0)
 
-    features = ClimateEntityFeature.TURN_OFF
+    features = ClimateEntityFeature(0)
+
+    if resource.attributes.supports_off_mode:
+        features |= ClimateEntityFeature.TURN_OFF
 
     if resource.attributes.supports_heat_mode or resource.attributes.supports_cool_mode:
         features |= ClimateEntityFeature.TARGET_TEMPERATURE
@@ -159,8 +162,6 @@ def hvac_mode_fn(controller: pyadc.ThermostatController, thermostat_id: str) -> 
         return HVACMode.COOL
     if state == pyadc.thermostat.ThermostatState.AUTO:
         return HVACMode.HEAT_COOL
-    if resource.attributes.schedule_mode != pyadc.thermostat.ThermostatScheduleMode.MANUAL_MODE:
-        return HVACMode.AUTO
     return None
 
 
@@ -181,8 +182,6 @@ def hvac_modes_fn(controller: pyadc.ThermostatController, thermostat_id: str) ->
         modes.append(HVACMode.COOL)
     if resource.attributes.supports_auto_mode:
         modes.append(HVACMode.HEAT_COOL)
-    if resource.attributes.supports_schedules:
-        modes.append(HVACMode.AUTO)
     # if resource.attributes.supports_fan_mode:
     #     modes.append(HVACMode.FAN_ONLY)
     return modes

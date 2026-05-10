@@ -346,6 +346,7 @@ class ProxyThermostatController:
         self._resources: dict[str, ProxyThermostatResource] = {}
         self._refresh_lock = asyncio.Lock()
         self._resource_refreshed_at: dict[str, float] = {}
+        self._write_locks: dict[str, asyncio.Lock] = {}
 
     def __iter__(self) -> Any:
         """Iterate thermostat resources."""
@@ -401,6 +402,13 @@ class ProxyThermostatController:
             if thermostat_id not in self._resources:
                 raise ThermostatProxyError("Thermostat proxy could not find the resource.")
 
+    def _write_lock(self, thermostat_id: str) -> asyncio.Lock:
+        lock = self._write_locks.get(thermostat_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._write_locks[thermostat_id] = lock
+        return lock
+
     async def set_state(
         self,
         thermostat_id: str,
@@ -412,47 +420,48 @@ class ProxyThermostatController:
         schedule_mode: pyadc.thermostat.ThermostatScheduleMode | None = None,
     ) -> None:
         """Set allowed thermostat state via the proxy allowlist."""
-        if state is not None:
-            await self._request_and_store(
-                {
-                    "op": "set_mode",
-                    "thermostat_id": thermostat_id,
-                    "mode": state.name.lower().replace("auto", "auto"),
-                }
-            )
-        if fan_mode is not None:
-            await self._request_and_store(
-                {
-                    "op": "set_fan_mode",
-                    "thermostat_id": thermostat_id,
-                    "fan_mode": fan_mode.name.lower(),
-                }
-            )
-        if heat_setpoint is not None and cool_setpoint is not None:
-            await self._set_setpoint_range(
-                thermostat_id,
-                heat_setpoint=heat_setpoint,
-                cool_setpoint=cool_setpoint,
-            )
-            return
-        if heat_setpoint is not None:
-            await self._request_and_store(
-                {
-                    "op": "set_heat_setpoint",
-                    "thermostat_id": thermostat_id,
-                    "temperature": heat_setpoint,
-                }
-            )
-        if cool_setpoint is not None:
-            await self._request_and_store(
-                {
-                    "op": "set_cool_setpoint",
-                    "thermostat_id": thermostat_id,
-                    "temperature": cool_setpoint,
-                }
-            )
-        if schedule_mode is not None:
-            raise ThermostatProxySecurityError("Schedule writes are not implemented.")
+        async with self._write_lock(thermostat_id):
+            if state is not None:
+                await self._request_and_store(
+                    {
+                        "op": "set_mode",
+                        "thermostat_id": thermostat_id,
+                        "mode": state.name.lower().replace("auto", "auto"),
+                    }
+                )
+            if fan_mode is not None:
+                await self._request_and_store(
+                    {
+                        "op": "set_fan_mode",
+                        "thermostat_id": thermostat_id,
+                        "fan_mode": fan_mode.name.lower(),
+                    }
+                )
+            if heat_setpoint is not None and cool_setpoint is not None:
+                await self._set_setpoint_range(
+                    thermostat_id,
+                    heat_setpoint=heat_setpoint,
+                    cool_setpoint=cool_setpoint,
+                )
+                return
+            if heat_setpoint is not None:
+                await self._request_and_store(
+                    {
+                        "op": "set_heat_setpoint",
+                        "thermostat_id": thermostat_id,
+                        "temperature": heat_setpoint,
+                    }
+                )
+            if cool_setpoint is not None:
+                await self._request_and_store(
+                    {
+                        "op": "set_cool_setpoint",
+                        "thermostat_id": thermostat_id,
+                        "temperature": cool_setpoint,
+                    }
+                )
+            if schedule_mode is not None:
+                raise ThermostatProxySecurityError("Schedule writes are not implemented.")
 
     async def _set_setpoint_range(
         self,

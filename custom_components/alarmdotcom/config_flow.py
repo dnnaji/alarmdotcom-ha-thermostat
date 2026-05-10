@@ -64,36 +64,36 @@ class ADCFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_SECRET_PROFILE: user_input[CONF_SECRET_PROFILE],
             }
 
-            async with async_timeout.timeout(60):
-                try:
+            try:
+                async with async_timeout.timeout(60):
                     self.bridge = ThermostatProxyBridge(self.hass, _FlowEntry(self.config))
                     await self.bridge.initialize()
-                except ThermostatProxyMfaRequired:
-                    LOGGER.debug("OTP code required; host-side MFA cookie refresh needed.")
-                    errors["base"] = "mfa_cookie_required"
-                except ThermostatProxyAuthFailed:
-                    errors["base"] = "thermostat_proxy_auth_failed"
-                except ThermostatProxyUnavailable:
-                    errors["base"] = "thermostat_proxy_unavailable"
-                except ThermostatProxyError:
-                    errors["base"] = "thermostat_proxy_invalid"
-                except TimeoutError:
-                    LOGGER.exception(
-                        "%s: user login failed to contact Alarm.com.",
-                        __name__,
-                    )
-                    errors["base"] = "cannot_connect"
-                except Exception:
-                    LOGGER.exception("Got error while initializing Alarm.com.")
-                    errors["base"] = "unknown"
-                else:
-                    return await self.async_step_final()
+            except ThermostatProxyMfaRequired:
+                LOGGER.debug("OTP code required; host-side MFA cookie refresh needed.")
+                errors["base"] = "mfa_cookie_required"
+            except ThermostatProxyAuthFailed:
+                errors["base"] = "thermostat_proxy_auth_failed"
+            except ThermostatProxyUnavailable:
+                errors["base"] = "thermostat_proxy_unavailable"
+            except ThermostatProxyError:
+                errors["base"] = "thermostat_proxy_invalid"
+            except TimeoutError:
+                LOGGER.exception(
+                    "%s: user login failed to contact Alarm.com.",
+                    __name__,
+                )
+                errors["base"] = "cannot_connect"
+            except Exception:
+                LOGGER.exception("Got error while initializing Alarm.com.")
+                errors["base"] = "unknown"
+            else:
+                return await self.async_step_final()
 
         creds_schema = vol.Schema(
             {
                 vol.Required(
                     CONF_SECRET_PROFILE,
-                    default=DEFAULT_SECRET_PROFILE,
+                    default=self.config.get(CONF_SECRET_PROFILE, DEFAULT_SECRET_PROFILE),
                 ): TextSelector(
                     TextSelectorConfig(
                         type=TextSelectorType.TEXT,
@@ -139,7 +139,14 @@ class ADCFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Perform reauth upon an API authentication error."""
         LOGGER.debug("Reauthenticating.")
-        self._existing_entry = await self.async_set_unique_id(self._config_title)
+        entry_id = self.context.get("entry_id")
+        if isinstance(entry_id, str):
+            self._existing_entry = self.hass.config_entries.async_get_entry(entry_id)
+
+        if self._existing_entry is None:
+            return self.async_abort(reason="unknown")
+
+        self.config = dict(self._existing_entry.data)
         return await self.async_step_reauth_confirm(user_input)
 
     async def async_step_reauth_confirm(
