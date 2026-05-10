@@ -206,7 +206,10 @@ async def _proxy_request(
 
     try:
         reader, writer = await asyncio.wait_for(
-            asyncio.open_unix_connection(proxy_config.socket_path),
+            asyncio.open_unix_connection(
+                proxy_config.socket_path,
+                limit=MAX_PROXY_MESSAGE_BYTES + 1,
+            ),
             timeout=PROXY_TIMEOUT_SECONDS,
         )
     except (FileNotFoundError, ConnectionError, OSError, TimeoutError) as err:
@@ -219,6 +222,8 @@ async def _proxy_request(
             reader.readline(),
             timeout=PROXY_TIMEOUT_SECONDS,
         )
+    except asyncio.LimitOverrunError as err:
+        raise ThermostatProxyError("Thermostat proxy response is too large.") from err
     except (ConnectionError, OSError, TimeoutError) as err:
         raise ThermostatProxyUnavailable("Thermostat proxy request failed.") from err
     finally:

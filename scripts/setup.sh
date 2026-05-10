@@ -10,6 +10,10 @@ check_command() {
     "$@"
 }
 
+verify_go2rtc_checksum() {
+    printf "%s  %s\n" "$go2rtc_sha256" "$go2rtc_binary" | sha256sum --check -
+}
+
 check_ha_version() {
     local req_file="$1"
     echo -e "\n\033[1;34m==> Checking Home Assistant version...\033[0m"
@@ -67,8 +71,7 @@ check_command sudo apt-get install -y \
 echo -e "\n\033[1;34m==> Installing go2rtc for optional streaming support...\033[0m"
 
 check_command wget -O "$go2rtc_binary" "$go2rtc_url"
-echo -e "\n🔹 Verifying: \033[1;36m$go2rtc_binary sha256\033[0m"
-echo "$go2rtc_sha256  $go2rtc_binary" | sha256sum --check -
+check_command verify_go2rtc_checksum
 check_command chmod +x "$go2rtc_binary"
 check_command sudo mv "$go2rtc_binary" /usr/local/bin/go2rtc
 check_command go2rtc --version

@@ -16,7 +16,7 @@ jobs:
         steps:
             - uses: "actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744"
             - name: HACS Action
-              if: github.repository == 'pyalarmdotcom/alarmdotcom'
+              if: ${{ github.repository == 'pyalarmdotcom/alarmdotcom' || github.repository == 'dnnaji/alarmdotcom-ha-thermostat' }}
               uses: hacs/action@dcb30e72781db3f207d5236b861172774ab0b485
               with:
                   category: "integration"

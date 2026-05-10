@@ -140,4 +140,6 @@ The host-side thermostat proxy must provide:
 - a read-only bearer token file mounted at `/run/adc-thermostat-proxy/token`
 - a thermostat profile matching the profile entered in the integration flow
 
+The socket and token paths must be regular owner-only resources owned by the Home Assistant runtime user. The token file should be mounted read-only with no group/other permissions, for example `0400` or `0600`; the socket must also have no group/other permissions. Symlinks are refused for both paths.
+
 Home Assistant receives thermostat-only state and commands through that proxy. It does not receive the Alarm.com username, password, MFA cookie, or a general Alarm.com session.
