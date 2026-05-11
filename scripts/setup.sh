@@ -10,6 +10,10 @@ check_command() {
     "$@"
 }
 
+verify_go2rtc_checksum() {
+    printf "%s  %s\n" "$go2rtc_sha256" "$go2rtc_binary" | sha256sum --check -
+}
+
 check_ha_version() {
     local req_file="$1"
     echo -e "\n\033[1;34m==> Checking Home Assistant version...\033[0m"
@@ -47,6 +51,10 @@ library_name="${LIBRARY_NAME}"
 repo_url="${LIBRARY_GIT_URL}"
 lib_dir="/workspaces/$library_name"
 workspace_dir="${WORKSPACE_DIRECTORY}"
+go2rtc_version="v1.9.14"
+go2rtc_binary="go2rtc_linux_amd64"
+go2rtc_sha256="32d616af226bd731678ffde328b94cfb94e30339bfefc469cfb76323144615a6"
+go2rtc_url="https://github.com/AlexxIT/go2rtc/releases/download/${go2rtc_version}/${go2rtc_binary}"
 
 # ─── Home Assistant Prerequisites ──────────────────────────────────────────────
 echo -e "\n\033[1;34m==> Installing Home Assistant prerequisites...\033[0m"
@@ -62,9 +70,10 @@ check_command sudo apt-get install -y \
 # ─── Optional: go2rtc binary (for streaming support) ───────────────────────────
 echo -e "\n\033[1;34m==> Installing go2rtc for optional streaming support...\033[0m"
 
-check_command wget https://github.com/AlexxIT/go2rtc/releases/latest/download/go2rtc_linux_amd64
-check_command chmod +x go2rtc_linux_amd64
-check_command sudo mv go2rtc_linux_amd64 /usr/local/bin/go2rtc
+check_command wget -O "$go2rtc_binary" "$go2rtc_url"
+check_command verify_go2rtc_checksum
+check_command chmod +x "$go2rtc_binary"
+check_command sudo mv "$go2rtc_binary" /usr/local/bin/go2rtc
 check_command go2rtc --version
 
 # ─── Dev Requirements ──────────────────────────────────────────────────────────

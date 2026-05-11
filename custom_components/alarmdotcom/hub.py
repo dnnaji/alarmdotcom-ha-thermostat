@@ -2,20 +2,26 @@
 
 import asyncio
 import logging
+from typing import cast
 
 import pyalarmdotcomajax as pyadc
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from pyalarmdotcomajax import AlarmBridge
 
 from .const import (
-    CONF_MFA_TOKEN,
     DATA_HUB,
     DOMAIN,
     PLATFORMS,
+)
+from .thermostat_proxy import (
+    ThermostatProxyAuthFailed,
+    ThermostatProxyBridge,
+    ThermostatProxyError,
+    ThermostatProxyMfaRequired,
+    ThermostatProxyUnavailable,
 )
 
 log = logging.getLogger(__name__)
@@ -30,11 +36,8 @@ class AlarmHub:
         self.hass: HomeAssistant = hass
         self.config_entry: ConfigEntry = config_entry
 
-        self.api = AlarmBridge(
-            username=config_entry.data[CONF_USERNAME],
-            password=config_entry.data[CONF_PASSWORD],
-            mfa_token=config_entry.data.get(CONF_MFA_TOKEN),
-        )
+        self.api: AlarmBridge
+        self._api_initialized = False
 
         self.close_jobs: list[CALLBACK_TYPE] = []
 
@@ -67,33 +70,31 @@ class AlarmHub:
     #     return bool(asyncio.get_event_loop().time() - last_connected < 60)
 
     async def login(self) -> bool:
-        """Log in to alarm.com."""
+        """Create the thermostat-only proxy facade."""
 
-        try:
-            await self.api.login()
-        except pyadc.AuthenticationFailed as err:
-            raise ConfigEntryAuthFailed from err
-        except pyadc.MustConfigureMfa:
-            log.error(
-                "Alarm.com requires that two-factor authentication be set up on your account. "
-                "Please log in to Alarm.com and set up two-factor authentication."
-            )
-            return False
-        except Exception as err:
-            log.error("Unexpected error during Alarm.com login: %s", err)
-            return False
-
+        self.api = cast("AlarmBridge", ThermostatProxyBridge(self.hass, self.config_entry))
         return True
 
     async def initialize(self) -> bool:
         """Initialize connection to Alarm.com after user-driven authentication has already taken place."""
 
         setup_ok = False
+        if not await self.login():
+            return False
 
         try:
-            async with asyncio.timeout(10):
+            async with asyncio.timeout(60):
                 await self.api.initialize()
             setup_ok = True
+            self._api_initialized = True
+        except ThermostatProxyMfaRequired as err:
+            raise ConfigEntryAuthFailed("Alarm.com MFA token must be refreshed.") from err
+        except ThermostatProxyAuthFailed as err:
+            raise ConfigEntryAuthFailed from err
+        except ThermostatProxyUnavailable as err:
+            raise ConfigEntryNotReady("Alarm.com thermostat proxy is unavailable.") from err
+        except ThermostatProxyError as err:
+            raise ConfigEntryNotReady("Alarm.com thermostat proxy returned invalid data.") from err
         except (
             TimeoutError,
             pyadc.UnexpectedResponse,
@@ -106,7 +107,7 @@ class AlarmHub:
             log.exception("Unexpected error during Alarm.com initialization.")
             return False
         finally:
-            if not setup_ok:
+            if not setup_ok and self._api_initialized:
                 await self.api.close()
 
         # Initialize WebSocket connection.
@@ -138,7 +139,8 @@ class AlarmHub:
         while self.close_jobs:
             self.close_jobs.pop()()
 
-        await self.api.close()
+        if self._api_initialized:
+            await self.api.close()
 
         unload_success: bool = await self.hass.config_entries.async_unload_platforms(
             self.config_entry, PLATFORMS

@@ -2,20 +2,23 @@
 
 import logging
 
-import aiohttp
-import pyalarmdotcomajax as pyadc
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryNotReady
 
 from .const import (
     CONF_ARM_AWAY,
+    CONF_ARM_CODE,
     CONF_ARM_HOME,
     CONF_ARM_NIGHT,
     CONF_FORCE_BYPASS,
+    CONF_MFA_TOKEN,
     CONF_NO_ENTRY_DELAY,
+    CONF_SECRET_PROFILE,
     CONF_SILENT_ARM,
     DATA_HUB,
+    DEFAULT_SECRET_PROFILE,
     DOMAIN,
     PLATFORMS,
     STARTUP_MESSAGE,
@@ -23,6 +26,32 @@ from .const import (
 from .hub import AlarmHub
 
 LOGGER = logging.getLogger(__name__)
+
+
+V6_LEGACY_DATA_KEYS = (
+    CONF_USERNAME,
+    CONF_PASSWORD,
+    CONF_MFA_TOKEN,
+    CONF_ARM_CODE,
+    "secret_proxy_socket",
+    "secret_proxy_token_file",
+    "thermostat_proxy_socket",
+    "thermostat_proxy_token_file",
+)
+
+V6_LEGACY_OPTION_KEYS = (
+    CONF_USERNAME,
+    CONF_PASSWORD,
+    CONF_MFA_TOKEN,
+    CONF_ARM_AWAY,
+    CONF_ARM_CODE,
+    CONF_ARM_HOME,
+    CONF_ARM_NIGHT,
+    "use_arm_code",
+    "force_bypass",
+    "silent_arming",
+    "no_entry_delay",
+)
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
@@ -38,12 +67,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 
     hub = AlarmHub(hass, config_entry)
 
-    try:
-        await hub.initialize()
-    except pyadc.AuthenticationException as ex:
-        raise ConfigEntryAuthFailed from ex
-    except (TimeoutError, pyadc.AlarmdotcomException, aiohttp.ClientError) as ex:
-        raise ConfigEntryNotReady from ex
+    if not await hub.initialize():
+        raise ConfigEntryNotReady("Alarm.com integration did not initialize.")
 
     await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
 
@@ -52,7 +77,9 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     return True
 
 
-async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
+async def async_migrate_entry(  # noqa: C901
+    hass: HomeAssistant, config_entry: ConfigEntry
+) -> bool:
     """Migrate old entry."""
 
     #
@@ -193,6 +220,28 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
         )
 
         LOGGER.info("Migration to version %s successful", 5)
+
+    #
+    # To v6
+    #
+
+    if config_entry.version == 5:
+        LOGGER.debug("Migrating from version %s", config_entry.version)
+
+        v6_data = {**config_entry.data}
+        for key in V6_LEGACY_DATA_KEYS:
+            v6_data.pop(key, None)
+        v6_data.setdefault(CONF_SECRET_PROFILE, DEFAULT_SECRET_PROFILE)
+
+        v6_options = {**config_entry.options}
+        for key in V6_LEGACY_OPTION_KEYS:
+            v6_options.pop(key, None)
+
+        hass.config_entries.async_update_entry(
+            config_entry, data=v6_data, options=v6_options, version=6
+        )
+
+        LOGGER.info("Migration to version %s successful", 6)
 
     return True
 
