@@ -533,7 +533,7 @@ class ProxyThermostatController:
             raise ThermostatProxyError("Thermostat proxy returned invalid thermostat state.")
         resource = _resource_from_snapshot(snapshot)
         self._resources[resource.id] = resource
-        self._resource_refreshed_at[resource.id] = asyncio.get_running_loop().time()
+        self._resource_refreshed_at.pop(resource.id, None)
 
 
 class ThermostatProxyBridge:
